@@ -26,7 +26,7 @@ func NewPrometheusMetricsClient(address string) (*PrometheusMetricsClient, error
 	return &PrometheusMetricsClient{address: address}, nil
 }
 
-func (p *PrometheusMetricsClient) NodeMetricsAvg(nodeName string, period string) (*NodeMetrics, error) {
+func (p *PrometheusMetricsClient) NodeMetricsAvg(ctx context.Context, nodeName string, period string) (*NodeMetrics, error) {
 	client, err := api.NewClient(api.Config{
 		Address: p.address,
 	})
@@ -34,8 +34,6 @@ func (p *PrometheusMetricsClient) NodeMetricsAvg(nodeName string, period string)
 		return nil, err
 	}
 	v1api := prometheusv1.NewAPI(client)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-	defer cancel()
 	nodeMetrics := &NodeMetrics{}
 	for _, metric := range []string{promCpuUsageAvg, promMemUsageAvg} {
 		queryStr := fmt.Sprintf("%s_%s{instance=\"%s\"}", metric, period, nodeName)

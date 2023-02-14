@@ -1,5 +1,7 @@
 package mec
 
+import "context"
+
 type MetricsClient interface {
-	NodeMetricsAvg(nodeName string, period string) (*NodeMetrics, error)
+	NodeMetricsAvg(ctx context.Context, nodeName string, period string) (*NodeMetrics, error)
 }
