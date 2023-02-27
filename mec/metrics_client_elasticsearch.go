@@ -17,21 +17,32 @@ const (
 )
 
 type ElasticsearchMetricsClient struct {
-	address string
-	es      *elasticsearch.Client
+	address   string
+	indexName string
+	es        *elasticsearch.Client
 }
 
-func NewElasticsearchMetricsClient(address string) (*ElasticsearchMetricsClient, error) {
-	e := &ElasticsearchMetricsClient{address: address}
+func NewElasticsearchMetricsClient(address string, conf map[string]string) (*ElasticsearchMetricsClient, error) {
+	e := &ElasticsearchMetricsClient{}
+	indexConf := conf["elasticsearch.index"]
+	if len(indexConf) == 0 {
+		e.indexName = "metricbeat-*"
+	} else {
+		e.indexName = indexConf
+	}
 	var err error
-	e.es, err = elasticsearch.NewDefaultClient()
+	e.es, err = elasticsearch.NewClient(elasticsearch.Config{
+		Addresses: []string{address},
+		Username:  conf["elasticsearch.username"],
+		Password:  conf["elasticsearch.password"],
+	})
 	if err != nil {
 		return nil, err
 	}
 	return e, nil
 }
 
-func (p *ElasticsearchMetricsClient) NodeMetricsAvg(ctx context.Context, nodeName string, period string) (*NodeMetrics, error) {
+func (e *ElasticsearchMetricsClient) NodeMetricsAvg(ctx context.Context, nodeName string, period string) (*NodeMetrics, error) {
 	nodeMetrics := &NodeMetrics{}
 	var buf bytes.Buffer
 	query := map[string]interface{}{
@@ -71,10 +82,10 @@ func (p *ElasticsearchMetricsClient) NodeMetricsAvg(ctx context.Context, nodeNam
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
 		return nil, err
 	}
-	res, err := p.es.Search(
-		p.es.Search.WithContext(ctx),
-		p.es.Search.WithIndex("metricbeat-*"),
-		p.es.Search.WithBody(&buf),
+	res, err := e.es.Search(
+		e.es.Search.WithContext(ctx),
+		e.es.Search.WithIndex(e.indexName),
+		e.es.Search.WithBody(&buf),
 	)
 	if err != nil {
 		return nil, err
