@@ -2,10 +2,12 @@ package mec
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/prometheus/client_golang/api"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -20,15 +22,25 @@ const (
 
 type PrometheusMetricsClient struct {
 	address string
+	conf    map[string]string
 }
 
-func NewPrometheusMetricsClient(address string) (*PrometheusMetricsClient, error) {
-	return &PrometheusMetricsClient{address: address}, nil
+func NewPrometheusMetricsClient(address string, conf map[string]string) (*PrometheusMetricsClient, error) {
+	return &PrometheusMetricsClient{address: address, conf: conf}, nil
 }
 
 func (p *PrometheusMetricsClient) NodeMetricsAvg(ctx context.Context, nodeName string, period string) (*NodeMetrics, error) {
-	client, err := api.NewClient(api.Config{
-		Address: p.address,
+	var client api.Client
+	var err error
+	insecureSkipVerify := p.conf["tls.insecureSkipVerify"] == "true"
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: insecureSkipVerify,
+		},
+	}
+	client, err = api.NewClient(api.Config{
+		Address:      p.address,
+		RoundTripper: tr,
 	})
 	if err != nil {
 		return nil, err

@@ -3,8 +3,10 @@ package mec
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"github.com/elastic/go-elasticsearch/v7"
+	"net/http"
 )
 
 const (
@@ -31,10 +33,16 @@ func NewElasticsearchMetricsClient(address string, conf map[string]string) (*Ela
 		e.indexName = indexConf
 	}
 	var err error
+	insecureSkipVerify := conf["tls.insecureSkipVerify"] == "true"
 	e.es, err = elasticsearch.NewClient(elasticsearch.Config{
 		Addresses: []string{address},
 		Username:  conf["elasticsearch.username"],
 		Password:  conf["elasticsearch.password"],
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: insecureSkipVerify,
+			},
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -91,14 +99,20 @@ func (e *ElasticsearchMetricsClient) NodeMetricsAvg(ctx context.Context, nodeNam
 		return nil, err
 	}
 	defer res.Body.Close()
-	var r map[string]interface{}
+	var r struct {
+		Aggregations struct {
+			Cpu struct {
+				Value float64 `json:"value"`
+			}
+			Mem struct {
+				Value float64 `json:"value"`
+			}
+		} `json:"aggregations"`
+	}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		return nil, err
 	}
-	aggs := r["aggregations"].(map[string]interface{})
-	cpuUsage := aggs["cpu"].(map[string]interface{})["value"].(float64)
-	memUsage := aggs["mem"].(map[string]interface{})["value"].(float64)
-	nodeMetrics.Cpu = cpuUsage
-	nodeMetrics.Memory = memUsage
+	nodeMetrics.Cpu = r.Aggregations.Cpu.Value
+	nodeMetrics.Memory = r.Aggregations.Mem.Value
 	return nodeMetrics, nil
 }
